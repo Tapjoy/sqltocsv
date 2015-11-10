@@ -1,0 +1,29 @@
+#!/bin/bash
+
+set -x
+set -e
+
+go version
+export PACKAGE=github.com/tapjoy/sqltocsv
+mkdir -p build
+rm -rf build/*
+#source /home/ubuntu/.gvm/scripts/gvm
+#gvm use go1.4.2
+export GITREF=`git rev-parse HEAD`
+echo $GITREF
+cd build
+export GOPATH=`pwd`
+export PATH=$PATH:$GOPATH/bin
+go get -d $PACKAGE
+pushd src/$PACKAGE
+git fetch --tags origin +refs/pull/*:refs/remotes/origin/pr/*
+git checkout -f $GITREF
+popd
+# re-get the repo from the updated source to retrieve any missing 3rd party libraries
+go get -t $PACKAGE
+go install $PACKAGE
+
+go get -u github.com/jstemmer/go-junit-report
+
+mkdir -p results
+go test -v .../sqltocsv/...
