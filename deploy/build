@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -x
+set -e
+
+mkdir -p build
+source /home/ubuntu/.gvm/scripts/gvm
+gvm use go1.5.1
+export GITREF=`git rev-parse HEAD`
+echo $GITREF
+cd build
+export GOPATH=`pwd`
+go get -d github.com/tapjoy/sqltocsv
+cd src/github.com/tapjoy/sqltocsv
+git checkout -f $GITREF
+cd ../../../../
+# re-get the repo from the updated source to retrieve any missing 3rd party libraries
+go get github.com/tapjoy/sqltocsv
+go install github.com/tapjoy/sqltocsv
+cd ..
+cp build/bin/sqltocsv ./
