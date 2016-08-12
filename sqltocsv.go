@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	// blank to add the mysql driver
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 )
 
 // Config is
@@ -21,25 +23,29 @@ type Config struct {
 }
 
 func main() {
+	fmt.Println("Booting...")
 	cfg := getConfig()
 	db, err := sqlx.Open(cfg.dbAdapter, cfg.connString)
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	fmt.Println("Quering database...")
+	fmt.Println(cfg.sqlQuery)
 	results, err := db.Queryx(cfg.sqlQuery)
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	fmt.Println("Creating file...")
 	output, err := os.Create(cfg.outputFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	fmt.Println("Generating writer...")
 	csvWriter := csv.NewWriter(output)
-	csvWriter.Comma = 0x0009
+	//csvWriter.Comma = 0x0009
 	firstLine := true
+	anonymizer := make(map[string]int)
+	x := 0
 	for results.Next() {
 		row, err := results.SliceScan()
 		if err != nil {
@@ -53,7 +59,7 @@ func main() {
 			}
 			csvWriter.Write(cols)
 		}
-
+		x++
 		rowStrings := make([]string, len(row))
 		// It seems for mysql, the case is always []byte of a string?
 		for i, col := range row {
@@ -66,9 +72,29 @@ func main() {
 			case bool:
 				rowStrings[i] = strconv.FormatBool(col.(bool))
 			case []byte:
-				rowStrings[i] = string(col.([]byte))
+				data := string(col.([]byte))
+				if i == 2 {
+					var obj int
+					var ok bool
+					if obj, ok = anonymizer[data]; !ok {
+						anonymizer[data] = x
+						obj = x
+					}
+					data = strconv.Itoa(obj)
+				}
+				rowStrings[i] = data
 			case string:
-				rowStrings[i] = col.(string)
+				data := col.(string)
+				if i == 2 {
+					var obj int
+					var ok bool
+					if obj, ok = anonymizer[data]; !ok {
+						anonymizer[data] = x
+						obj = x
+					}
+					data = strconv.Itoa(obj)
+				}
+				rowStrings[i] = data
 			case time.Time:
 				rowStrings[i] = col.(time.Time).String()
 			case nil:
@@ -80,6 +106,7 @@ func main() {
 		csvWriter.Write(rowStrings)
 	}
 
+	fmt.Printf("Dealt with %d lines\n", x)
 	csvWriter.Flush()
 	output.Close()
 }
