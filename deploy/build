@@ -1,21 +1,50 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Slugforge build script
+# This build script only exists until the entire CI chain is containerized. Then we can delete it altogether.
 
-set -x
-set -e
+set -eux
 
-mkdir -p build
-source /home/ubuntu/.gvm/scripts/gvm
-gvm use go1.5.1
-export GITREF=`git rev-parse HEAD`
-echo $GITREF
-cd build
-export GOPATH=`pwd`
-go get -d github.com/tapjoy/sqltocsv
-cd src/github.com/tapjoy/sqltocsv
-git checkout -f $GITREF
-cd ../../../../
-# re-get the repo from the updated source to retrieve any missing 3rd party libraries
-go get github.com/tapjoy/sqltocsv
-go install github.com/tapjoy/sqltocsv
-cd ..
-cp build/bin/sqltocsv ./
+GIT_TAG=$(git rev-parse --short HEAD)
+IMAGE_NAMESPACE='tapjoy'
+IMAGE_TAG='baseimage'
+# PROJECT_NAME var will be passed in by the slug builder container
+PROJECT_HOME=/go/src/github.com/tapjoy/${PROJECT_NAME}
+
+# BEGIN FUNCTIONS
+
+function run_build() {
+  # Tag new build-container image w/ SHA if the Dockerfile has changed.
+  if [[ ! -z "$(git diff origin/master Dockerfile)" ]]; then
+    echo "Dockerfile updates detected. Updating application's base image."
+    ## Affix git tag to base image to be built, from which a container will be created,
+    ## in which the deployment artifact will be built.
+    IMAGE_TAG=${IMAGE_TAG}-${GIT_TAG}
+  fi
+
+  # Build the base image for build container. If the Dockerfile hasn't changed, the image will
+  # likely be in the Docker build cache already.
+  docker build --target baseimage --tag "${IMAGE_NAMESPACE}/${PROJECT_NAME}:${IMAGE_TAG}" .
+
+  # $options is a var conditionally present in the Jenkins build env that passes in
+  # build options to slugforge as a string.
+  # Determine if the build requires git history + source files for development
+  if [[ ${options:-} = *"with-git"* ]]; then
+    echo "'with-git' has been specified. Including .git and project source in build"
+    export WITH_GIT=true
+  fi
+
+  # Run the deployment artifact preparation steps (prepare_for_deployment function in entrypoint)
+  ## - This Docker command will be run in the context of a `slugforge build` call by the Jenkins slug builder
+  ## - Setting BUNDLE_APP_CONFIG is required because the official Ruby image sets this variable, which breaks artifact builds
+  docker run --rm \
+    -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e PROJECT_NAME \
+    -e BUNDLE_APP_CONFIG=.bundle -e WITH_GIT \
+    -v "$(pwd):${PROJECT_HOME:-/project}" \
+    -v ~/.ssh/:/root/.ssh/ \
+    "${IMAGE_NAMESPACE}/${PROJECT_NAME}:${IMAGE_TAG}" \
+    make artifact-prep
+}
+
+# END FUNCTIONS
+
+run_build
