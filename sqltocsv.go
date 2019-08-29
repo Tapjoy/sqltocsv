@@ -51,8 +51,8 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			write, err := csvWriter.Write(cols)
-			if err != nil {
+			csvWriter.Write(cols)
+			if err := csvWriter.Error(); err != nil {
 				log.Fatal(err)
 			}
 		}
@@ -80,14 +80,14 @@ func main() {
 				log.Print(col)
 			}
 		}
-		write, err := csvWriter.Write(rowStrings)
-		if err != nil {
+		csvWriter.Write(rowStrings)
+		if err := csvWriter.Error(); err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	flush, err := csvWriter.Flush()
-	if err != nil {
+	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
 		log.Fatal(err)
 	}
 	output.Close()
