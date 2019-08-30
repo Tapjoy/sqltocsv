@@ -52,6 +52,9 @@ func main() {
 				log.Fatal(err)
 			}
 			csvWriter.Write(cols)
+			if err := csvWriter.Error(); err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		rowStrings := make([]string, len(row))
@@ -78,9 +81,15 @@ func main() {
 			}
 		}
 		csvWriter.Write(rowStrings)
+		if err := csvWriter.Error(); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		log.Fatal(err)
+	}
 	output.Close()
 }
 

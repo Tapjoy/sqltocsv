@@ -1,0 +1,23 @@
+# sqltocsv file(s)
+sqltocsv
+
+# deploy file
+*.slug
+*.pid
+
+# log files
+*.log
+
+# misc. files
+.DS_Store
+*.orig
+*.swp
+
+
+# env files
+.env
+.env-tiab
+
+# slugforge deployment artifacts
+slugforge_status*
+shafile
